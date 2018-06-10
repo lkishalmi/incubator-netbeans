@@ -67,3 +67,4 @@
 /nbbuild/packaging/stage/
 *.snap
 
+.gradle
