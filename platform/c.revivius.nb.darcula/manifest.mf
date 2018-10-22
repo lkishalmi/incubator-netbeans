@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
-OpenIDE-Module: com.revivius.nb.darcula/1
+OpenIDE-Module: com.revivius.nb.darcula
 OpenIDE-Module-Install: com/revivius/nb/darcula/Installer.class
 OpenIDE-Module-Layer: com/revivius/nb/darcula/layer.xml
 OpenIDE-Module-Localizing-Bundle: com/revivius/nb/darcula/Bundle.properties
