@@ -78,3 +78,7 @@
 *.snap
 
 .gradle
+# Backup files
+######################
+*~
+*.orig
