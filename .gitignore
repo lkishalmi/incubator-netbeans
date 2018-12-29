@@ -103,3 +103,5 @@ derby.log
 /nbbuild/misc/prepare-bundles/target/
 
 .gradle
+/.nb-gradle/
+/build/
