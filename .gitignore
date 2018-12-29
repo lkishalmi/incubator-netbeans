@@ -83,3 +83,5 @@
 *~
 *.orig
 .gradle
+/.nb-gradle/
+/build/
