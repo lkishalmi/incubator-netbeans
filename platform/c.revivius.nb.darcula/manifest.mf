@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+OpenIDE-Module: com.revivius.nb.darcula/1
+OpenIDE-Module-Install: com/revivius/nb/darcula/Installer.class
+OpenIDE-Module-Layer: com/revivius/nb/darcula/layer.xml
+OpenIDE-Module-Localizing-Bundle: com/revivius/nb/darcula/Bundle.properties
+OpenIDE-Module-Name: Darcula Look and Feel
+OpenIDE-Module-Specification-Version: 1.6
+AutoUpdate-Show-In-Client: true
+AutoUpdate-Essential-Module: false
+Built-By: Revivius
