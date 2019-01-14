@@ -23,13 +23,23 @@ apply plugin: 'application'
 mainClassName = 'org.netbeans.modules.gradle.DebugTooling'
 def toolingApiVersion = gradle.gradleVersion
 
+buildDir = file('../build/tooling')
+
+[distTar, distZip]*.enabled = false
+
 sourceCompatibility = '1.8'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 repositories {
     jcenter()
-
 }
+
+task copyInitScript(type: Copy) {
+    from file('src/main/resources/nb-tooling.gradle')
+    into file("$buildDir/libs")
+}
+
+assemble.dependsOn('copyInitScript')
 
 dependencies {
     compile gradleApi()
