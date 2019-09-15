@@ -138,19 +138,24 @@ public class BootCPNodeFactory implements NodeFactory {
         @Override
         protected void addNotify() {
             pp.addChangeListener(this);
-            endorsed = pp.project.getLookup().lookup(ProjectSourcesClassPathProvider.class).getProjectClassPath(ENDORSED);
-            for (ClassPath cp : endorsed) {
-                cp.addPropertyChangeListener(this);
+            ProjectSourcesClassPathProvider pvd = pp.project.getLookup().lookup(ProjectSourcesClassPathProvider.class);
+            if (pvd != null) {
+                endorsed = pvd.getProjectClassPath(ENDORSED);
+                for (ClassPath cp : endorsed) {
+                    cp.addPropertyChangeListener(this);
+                }
             }
         }
 
         @Override
         protected void removeNotify() {
             pp.removeChangeListener(this);
-            for (ClassPath cp : endorsed) {
-                cp.removePropertyChangeListener(this);
+            if (endorsed != null) {
+                for (ClassPath cp : endorsed) {
+                    cp.removePropertyChangeListener(this);
+                }
+                endorsed = null;
             }
-            endorsed = null;
         }
 
         @Override
