@@ -28,10 +28,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.event.ChangeListener;
 import org.openide.modules.OnStart;
@@ -46,19 +54,17 @@ import org.openide.util.RequestProcessor;
 public class GradleArtifactStore {
 
     private static final String GRADLE_ARTIFACT_STORE_INFO = "gradle/artifact-store-info.ser";
+    private static final String NO_MODULE = "NONE"; //NOI18N
     public static final RequestProcessor RP = new RequestProcessor("Gradle Artifact Store", 1); //NOI18
+    public static final int STORE_VERSION = 2;
 
-    private final Map<String, Set<File>> binaries = new ConcurrentHashMap<>();
-    private final Map<File, File> sources = new ConcurrentHashMap<>();
-    private final Map<File, File> javadocs = new ConcurrentHashMap<>();
+    private final Map<File, String> fileToModules = new WeakHashMap<>();
+    private final Map<String, ModuleStore> modules = new ConcurrentHashMap<>();
 
     private static final GradleArtifactStore INSTANCE = new GradleArtifactStore();
     private final ChangeSupport cs = new ChangeSupport(this);
-    private final RequestProcessor.Task notifyTask = RP.create(new Runnable() {
-        @Override
-        public void run() {
-            cs.fireChange();
-        }
+    private final RequestProcessor.Task notifyTask = RP.create(() -> {
+        cs.fireChange();
     });
 
     @OnStart
@@ -75,68 +81,54 @@ public class GradleArtifactStore {
     }
 
     public Set<File> getBinaries(String id) {
-        Set<File> ret = binaries.get(id);
-        return ret;
+        ModuleStore store = modules.get(id);
+        return store != null ? store.binaries : null;
     }
     
     public File getSources(File binary) {
-        File ret = sources.get(binary);
-        if (ret != null && !ret.exists()) {
-            sources.remove(binary);
-            ret = null;
+        File ret = null;
+        String id = getModuleId(binary);
+        if (id != null) {
+            ModuleStore store = modules.get(id);
+            ret = store != null ? store.source : null;
         }
         if (ret == null) {
             ret = checkM2Heuristic(binary, "sources"); //NOI18N
-            if (ret != null) {
-                sources.put(binary, ret);
-            }
         }
         return ret;
     }
 
     public File getJavadoc(File binary) {
-        File ret = javadocs.get(binary);
-        if (ret != null && !ret.exists()) {
-            javadocs.remove(binary);
-            ret = null;
+        File ret = null;
+        String id = getModuleId(binary);
+        if (id != null) {
+            ModuleStore store = modules.get(id);
+            ret = store != null ? store.javadoc : null;
         }
         if (ret == null) {
             ret = checkM2Heuristic(binary, "javadoc"); //NOI18N
-            if (ret != null) {
-                javadocs.put(binary, ret);
-            }
         }
         return ret;
     }
 
     void processProject(GradleProject gp) {
         if (gp.getQuality().worseThan(Quality.FULL)) {
-            return;
+            return; //Do not trust a questionable source
         }
         boolean changed = false;
         for (GradleConfiguration conf : gp.getBaseProject().getConfigurations().values()) {
             for (GradleDependency.ModuleDependency module : conf.getModules()) {
-                Set<File> oldBins = binaries.get(module.getId());
-                Set<File> newBins = module.getArtifacts();
-                if (oldBins != newBins) {
-                    binaries.put(module.getId(), newBins);
+                ModuleStore newStore = new ModuleStore(module);
+                ModuleStore oldStore = modules.get(module.getId());
+                if (!newStore.equals(oldStore)) {
                     changed = true;
-                }
-                if (module.getArtifacts().size() == 1) {
-                    File binary = module.getArtifacts().iterator().next();
-                    if (module.getSources().size() == 1) {
-                        File source = module.getSources().iterator().next();
-                        if (binary.isFile() && source.isFile()) {
-                            File old = sources.put(binary, source);
-                            changed |= (old == null) || !old.equals(source);
-                        }
+                    if (oldStore != null) {
+                        oldStore.merge(newStore);
+                    } else {
+                        modules.put(module.getId(), newStore);
                     }
-                    if (module.getJavadoc().size() == 1) {
-                        File javadoc = module.getJavadoc().iterator().next();
-                        if (binary.isFile() && javadoc.isFile()) {
-                            File old = javadocs.put(binary, javadoc);
-                            changed |= (old == null) || !old.equals(javadoc);
-                        }
+                    for (File file : newStore.getFiles()) {
+                        fileToModules.put(file, newStore.id);
                     }
                 }
             }
@@ -148,15 +140,9 @@ public class GradleArtifactStore {
     }
 
     public void clear() {
-        sources.clear();
-        javadocs.clear();
+        modules.clear();
+        fileToModules.clear();
         store();
-    }
-
-    void verify() {
-        if (verifyMap(sources) || verifyMap(javadocs)) {
-            store();
-        }
     }
 
     public final void addChangeListener(ChangeListener l) {
@@ -167,49 +153,26 @@ public class GradleArtifactStore {
         cs.removeChangeListener(l);
     }
     
-    private boolean verifyMap(final Map<File, File> m) {
-        boolean changed = false;
-        Iterator<Map.Entry<File, File>> it = m.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<File, File> entry = it.next();
-            if (!entry.getKey().exists() || !entry.getValue().exists()) {
-                it.remove();
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
     @SuppressWarnings("unchecked")
     void load() {
         File cache = Places.getCacheSubfile(GRADLE_ARTIFACT_STORE_INFO);
         try (ObjectInputStream is = new ObjectInputStream(new FileInputStream(cache))) {
-            Map<String, Set<File>> bins = (Map<String, Set<File>>) is.readObject();
-            Iterator<Map.Entry<String, Set<File>>> it = bins.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, Set<File>> entry = it.next();
-                for (File f : entry.getValue()) {
-                    if (!f.exists()) {
-                        it.remove();
-                        break;
+            int cacheVersion = is.readInt();
+            if (cacheVersion == STORE_VERSION) {
+                Map<String, ModuleStore> archived = (Map<String, ModuleStore>) is.readObject();
+                clear();
+                for (Map.Entry<String, ModuleStore> entry : archived.entrySet()) {
+                    if (entry.getValue().validate()) {
+                        modules.put(entry.getKey(), entry.getValue());
+                        for (File file : entry.getValue().getFiles()) {
+                            fileToModules.put(file, entry.getKey());
+                        }
                     }
-                    
                 }
             }
-            binaries.clear();
-            binaries.putAll(bins);
-            
-            HashMap<File, File> srcs = (HashMap<File, File>) is.readObject();
-            verifyMap(srcs);
-            sources.clear();
-            sources.putAll(srcs);
-
-            HashMap<File, File> docs = (HashMap<File, File>) is.readObject();
-            verifyMap(docs);
-            javadocs.clear();
-            javadocs.putAll(docs);
         } catch (Throwable ex) {
             // Nothing to be done. Disk cache is invalid, it will be overwritten.
+            clear();
         }
     }
 
@@ -217,9 +180,8 @@ public class GradleArtifactStore {
     void store() {
         File cache = Places.getCacheSubfile(GRADLE_ARTIFACT_STORE_INFO);
         try (ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream(cache))) {
-            os.writeObject(new HashMap(binaries));
-            os.writeObject(new HashMap(sources));
-            os.writeObject(new HashMap(javadocs));
+            os.writeInt(STORE_VERSION);
+            os.writeObject(new HashMap(modules));
         } catch (IOException ex) {
 
         }
@@ -238,5 +200,88 @@ public class GradleArtifactStore {
             }
         }
         return ret;
+    }
+
+    private static String gradleCacheHeuristic(File jar) {
+        String ret = NO_MODULE;
+        Path p = jar.toPath();
+        int names = p.getNameCount();
+        if ((names > 6) && "files-2.1".equals(p.getName(names - 6).toString())) { //NOI18N
+            ret = p.getName(names - 5) + ":" + p.getName(names - 4) + ":" + p.getName(names - 3);
+        }
+        return ret;
+    }
+
+    private String getModuleId(File f) {
+        String id = fileToModules.get(f);
+        if (id == null) {
+            id = gradleCacheHeuristic(f);
+            fileToModules.put(f, id);
+        }
+        return id;
+    }
+
+    public final class ModuleStore implements Serializable {
+        final String id;
+        Set<File> binaries;
+        File source;
+        File javadoc;
+
+        public ModuleStore(GradleDependency.ModuleDependency module) {
+            id = module.getId();
+            binaries = new HashSet<>(module.getArtifacts());
+            source = module.getSources().isEmpty() ? null : module.getSources().iterator().next();
+            javadoc = module.getJavadoc().isEmpty() ? null : module.getJavadoc().iterator().next();
+        }
+
+        public Collection<File> getFiles() {
+            ArrayList<File> ret = new ArrayList<>(binaries);
+            if (source != null) ret.add(source);
+            if (javadoc != null) ret.add(javadoc);
+            return ret;
+        }
+
+        public void merge(ModuleStore s) {
+            binaries.addAll(s.binaries);
+            source = source == null ? s.source : null;
+            javadoc = javadoc == null ? s.javadoc : null;
+        }
+
+        @Override
+        public int hashCode() {
+            return id.hashCode();
+        }
+
+        public boolean validate() {
+            Iterator<File> it = binaries.iterator();
+            while (it.hasNext()) {
+                if (!it.next().isFile()) it.remove();
+            }
+            if (source != null) source = source.isFile() ? source : null;
+            if (javadoc != null) javadoc = javadoc.isFile() ? javadoc : null;
+            return !binaries.isEmpty();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ModuleStore other = (ModuleStore) obj;
+            if (!Objects.equals(this.binaries, other.binaries)) {
+                return false;
+            }
+            if (!Objects.equals(this.source, other.source)) {
+                return false;
+            }
+            return Objects.equals(this.javadoc, other.javadoc);
+        }
+
     }
 }
