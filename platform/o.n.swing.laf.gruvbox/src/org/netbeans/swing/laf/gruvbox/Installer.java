@@ -36,7 +36,7 @@ public class Installer extends ModuleInstall {
     @Override
     public void validate() throws IllegalStateException {
         UIManager.installLookAndFeel(new UIManager.LookAndFeelInfo(Bundle.LBL_GRUVBOX_DARK(), NbGruvBoxDark.class.getName()));
-//        UIManager.installLookAndFeel(new UIManager.LookAndFeelInfo(Bundle.LBL_GRUVBOX_LIGHT(), NbGruvBoxLight.class.getName()));
+        UIManager.installLookAndFeel(new UIManager.LookAndFeelInfo(Bundle.LBL_GRUVBOX_LIGHT(), NbGruvBoxLight.class.getName()));
     }
 
 }

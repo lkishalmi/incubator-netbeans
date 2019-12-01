@@ -4,13 +4,13 @@
     <folder name="Editors">
         <folder name="FontsColors">
             <folder name="GruvBoxDark">
-                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.modules.defaults.Bundle"/>
+                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.swing.laf.gruvbox.Bundle"/>
                 <folder name="Defaults">
                     <file name="org-netbeans-modules-defaults-token-colorings.xml" url="GruvBoxDark-fontsColorsDefaults.xml">
-                        <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.modules.defaults.Bundle"/>
+                        <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.swing.laf.gruvbox.Bundle"/>
                     </file>
                     <file name="org-netbeans-modules-defaults-highlight-colorings.xml" url="GruvBoxDark-editor.xml">
-                        <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.modules.defaults.Bundle"/>
+                        <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.swing.laf.gruvbox.Bundle"/>
                         <attr name="nbeditor-settings-ColoringType" stringvalue="highlight"/>
                     </file>
                 </folder>
@@ -22,7 +22,7 @@
                     <folder name="GruvBoxDark">
                         <folder name="Defaults">
                             <file name="org-netbeans-modules-properties-syntax-token-colorings.xml" url="GruvBox-Properties-fontsColors.xml">
-                                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.modules.defaults.Bundle"/>
+                                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.swing.laf.gruvbox.Bundle"/>
                             </file>
                         </folder>
                     </folder>
@@ -33,7 +33,7 @@
                     <folder name="GruvBoxDark">
                         <folder name="Defaults">
                             <file name="org-netbeans-modules-editor-java-token-colorings.xml" url="GruvBoxDark-Java-fontsColors.xml">
-                                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.modules.defaults.Bundle"/>
+                                <attr name="SystemFileSystem.localizingBundle" stringvalue="org.netbeans.swing.laf.gruvbox.Bundle"/>
                             </file>
                         </folder>
                     </folder>

@@ -22,6 +22,21 @@ package org.netbeans.swing.laf.gruvbox;
  *
  * @author lkishalmi
  */
-public class NbGruvBoxLight {
+public final class NbGruvBoxLight extends NbGruvBoxLaF {
+
+    @Override
+    public boolean isDark() {
+        return false;
+    }
+
+    @Override
+    public String getName() {
+        return "Gruvbox Light";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Gruvbox Light (experimental)";
+    }
 
 }

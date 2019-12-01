@@ -19,28 +19,11 @@
 package org.netbeans.swing.laf.gruvbox;
 
 import com.formdev.flatlaf.FlatLaf;
-import javax.swing.UIDefaults;
 
 /**
  *
  * @author lkishalmi
  */
-public final class NbGruvBoxDark extends NbGruvBoxLaF {
-
-    @Override
-    public boolean isDark() {
-        return true;
-    }
-
-    @Override
-    public String getName() {
-        return "Gruvbox Dark";
-    }
-
-    @Override
-    public String getDescription() {
-        return "Gruvbox Dark (experimental)";
-    }
-    
+public abstract class NbGruvBoxLaF extends FlatLaf {
 
 }
