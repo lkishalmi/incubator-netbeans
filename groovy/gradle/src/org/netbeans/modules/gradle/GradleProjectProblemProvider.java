@@ -68,24 +68,26 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
     }
 
     @Override
-    @NbBundle.Messages("LBL_BrokenPlatform=Broken Platform.")
+    @NbBundle.Messages({
+        "LBL_BrokenPlatform=Broken Platform.",
+        "LBL_PrimingRequired=Priming Build Required."
+    })
     public Collection<? extends ProjectProblem> getProblems() {
         List<ProjectProblem> ret = new ArrayList<>();
         synchronized (this) {
             if (listener == null) {
-                 listener = new PropertyChangeListener() {
-
-                    @Override
-                    public void propertyChange(PropertyChangeEvent evt) {
-                        if (NbGradleProject.PROP_PROJECT_INFO.equals(evt.getPropertyName())) {
-                            support.firePropertyChange(PROP_PROBLEMS, null, null);
-                        }
-                    }
-                };
+                 listener = (PropertyChangeEvent evt) -> {
+                     if (NbGradleProject.PROP_PROJECT_INFO.equals(evt.getPropertyName())) {
+                         support.firePropertyChange(PROP_PROBLEMS, null, null);
+                     }
+                 };
                 NbGradleProject.addPropertyChangeListener(project, listener);
             }
         }
         GradleProject gp = project.getLookup().lookup(NbGradleProjectImpl.class).getGradleProject();
+        if (gp.getQuality() == FALLBACK) {
+            ret.add(ProjectProblem.createError(Bundle.LBL_PrimingRequired(), Bundle.LBL_PrimingRequired(), resolver));
+        }
         for (String problem : gp.getProblems()) {
             String[] lines = problem.split("\\n"); //NOI18N
             ret.add(ProjectProblem.createWarning(lines[0], problem.replaceAll("\\n", "<br/>"), resolver)); //NOI18N
@@ -107,6 +109,7 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
         @Override
         public Result call() throws Exception {
             NbGradleProjectImpl impl = project.getLookup().lookup(NbGradleProjectImpl.class);
+            GradleProjectCache.approveProject(impl);
             GradleProject gradleProject = GradleProjectCache.loadProject(impl, FULL_ONLINE, true);
             impl.fireProjectReload(false);
             Quality q = gradleProject.getQuality();

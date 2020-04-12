@@ -67,6 +67,7 @@ public class ReloadAction  extends AbstractAction implements ContextAwareAction 
     @Override public void actionPerformed(ActionEvent event) {
         Set<Project> reload = new LinkedHashSet<>();
         for (NbGradleProjectImpl prj : context.lookupAll(NbGradleProjectImpl.class)) {
+            GradleProjectCache.approveProject(prj);
             reload.add(prj);
             reload.addAll(GradleProjects.openedProjectDependencies(prj).values());
         }

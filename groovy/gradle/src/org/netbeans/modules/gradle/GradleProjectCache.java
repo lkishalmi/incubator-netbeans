@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.netbeans.modules.gradle;
 
 import org.netbeans.modules.gradle.spi.GradleFiles;
@@ -33,15 +32,19 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -76,6 +79,7 @@ import org.openide.awt.NotificationDisplayer;
 
 import org.openide.awt.NotificationDisplayer.Category;
 import org.openide.awt.NotificationDisplayer.Priority;
+import org.openide.modules.Places;
 
 /**
  *
@@ -99,10 +103,15 @@ public final class GradleProjectCache {
     // Increase this number if new info is gathered from the projects.
     private static final int COMPATIBLE_CACHE_VERSION = 12;
 
+    private GradleProjectCache() {
+    }
+
     /**
-     * Loads a physical GradleProject either from Gradle or Cache. As project retrieval can be time consuming using
-     * Gradle sometimes it's just enough to shoot for FALLBACK information. Aiming for FALLBACK quality either retrieves
-     * the GradleProject form cache if it's valid or returns the fallback Project implementation.
+     * Loads a physical GradleProject either from Gradle or Cache. As project
+     * retrieval can be time consuming using Gradle sometimes it's just enough
+     * to shoot for FALLBACK information. Aiming for FALLBACK quality either
+     * retrieves the GradleProject form cache if it's valid or returns the
+     * fallback Project implementation.
      *
      * @param files The project to load.
      * @param requestedQuality The project information quality to aim for.
@@ -111,14 +120,15 @@ public final class GradleProjectCache {
     public static GradleProject loadProject(final NbGradleProjectImpl project, Quality aim, boolean ignoreCache, String... args) {
         final GradleFiles files = project.getGradleFiles();
 
-        if (aim == FALLBACK) {
+        boolean approved = ProjectTracker.getInstance().isApproved(files);
+        if (!approved) {
             return fallbackProject(files);
         }
-        GradleProject prev = project.project;
+        GradleProject prev = project.project != null ? project.project : fallbackProject(files);
 
         // Try to turn to the cache
         if (!(ignoreCache || GradleSettings.getDefault().isCacheDisabled())
-                && (prev.getQuality() == FALLBACK))  {
+                && (prev.getQuality() == FALLBACK)) {
             ProjectCacheEntry cacheEntry = loadCachedProject(files);
             if (cacheEntry != null) {
                 if (cacheEntry.isCompatible()) {
@@ -129,10 +139,6 @@ public final class GradleProjectCache {
                     }
                 }
             }
-        }
-        if (prev == null) {
-            // Could this happen?
-            prev = fallbackProject(project.getGradleFiles());
         }
 
         final ReloadContext ctx = new ReloadContext(project, prev, aim);
@@ -182,7 +188,6 @@ public final class GradleProjectCache {
         cmd.addSystemProperty(GradleDaemon.PROP_TOOLING_JAR, TOOLING_JAR);
         cmd.addProjectProperty("nbSerializeCheck", "true");
 
-
         GoOnline goOnline;
         if (GradleSettings.getDefault().isOffline()) {
             goOnline = GoOnline.NEVER;
@@ -225,7 +230,7 @@ public final class GradleProjectCache {
             } else {
                 String problem = info.getGradleException();
                 String[] lines = problem.split("\n");
-                LOG.log(INFO, "Failed to retrieve project information for: {0} {1}", new Object[] {base.getProjectDir(), lines});
+                LOG.log(INFO, "Failed to retrieve project information for: {0} {1}", new Object[]{base.getProjectDir(), lines});
                 openNotification(base.getProjectDir(), Bundle.TIT_LOAD_FAILED(base.getProjectDir().getName()), lines[0], problem);
                 return ctx.previous.invalidate(problem);
             }
@@ -513,6 +518,7 @@ public final class GradleProjectCache {
     }
 
     static final class ReloadContext {
+
         final NbGradleProjectImpl project;
         final GradleProject previous;
         final Quality aim;
@@ -614,4 +620,106 @@ public final class GradleProjectCache {
         }
 
     }
+
+    static void approveProject(NbGradleProjectImpl project) {
+        boolean needStore = ProjectTracker.getInstance().approve(project.getGradleFiles());
+        if (needStore) {
+            ProjectTracker.store();
+        }
+    }
+    
+    static final class ProjectTracker implements Serializable {
+        private static final String GRADLE_PROJECT_TRACKER_CACHE = "gradle/project-tracker.ser"; //NOI18N
+        private static final long serialVersionUID = 1L;
+        private static final long DAYS_180 = 180L * 24 * 60 * 60 * 1000;
+
+
+        private static ProjectTracker instance;
+
+        Map<String, Long> approved = new HashMap<>();
+        byte[] salt;
+
+        ProjectTracker() {
+            salt = new byte[16];
+            new Random().nextBytes(salt);
+        }
+
+        public boolean isApproved(GradleFiles files) {
+            String hash = createHash(files);
+            return approved.containsKey(hash);
+        }
+
+        public boolean approve(GradleFiles files) {
+            Long lastApprove = approved.put(createHash(files), System.currentTimeMillis());
+            return lastApprove == null || (lastApprove + DAYS_180 )> System.currentTimeMillis();
+        }
+
+        private void readObject(ObjectInputStream is) throws IOException {
+            salt = new byte[16];
+            is.read(salt);
+            try {
+                approved = (Map<String, Long>) is.readObject();
+            } catch(ClassNotFoundException cnf){}
+        }
+
+        private void writeObject(ObjectOutputStream os) throws IOException {
+            Map<String, Long> snapshot = new HashMap<>(approved);
+            long halfYearAgo = System.currentTimeMillis() - DAYS_180;
+            Iterator<Map.Entry<String, Long>> it = snapshot.entrySet().iterator();
+            while (it.hasNext()) {
+                if (it.next().getValue() < halfYearAgo) it.remove();
+            }
+            os.write(salt);
+            os.writeObject(snapshot);
+        }
+
+        String createHash(GradleFiles files) {
+            StringBuilder sb = new StringBuilder(64);
+            List<File> toCheck = new LinkedList<>();
+            toCheck.add(files.getRootDir());
+            try {
+                final MessageDigest digest = MessageDigest.getInstance("SHA-256"); //NOI18N
+                digest.update(salt);
+                for (File file : toCheck) {
+                    digest.update(file.getAbsolutePath().getBytes());
+                }
+                byte[] hash = digest.digest();
+                for (byte h : hash) {
+                    String hex = Integer.toHexString(0xff & h);
+                    if (hex.length() == 1) {
+                        sb.append('0');
+                    }
+                    sb.append(hex);
+                }
+            } catch (NoSuchAlgorithmException nae) {
+            }
+            return sb.toString();
+        }
+
+        static synchronized void store() {
+            File cache = Places.getCacheSubfile(GRADLE_PROJECT_TRACKER_CACHE);
+            if (instance != null) {
+                try (ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream(cache))) {
+                    os.writeObject(instance);
+                } catch (IOException ex) {
+                    LOG.log(WARNING, "Error in serializing Gradle Project Tracker", ex);
+                }
+            }
+        }
+
+        static ProjectTracker getInstance() {
+            if (instance == null) {
+                synchronized(ProjectTracker.class) {
+                    File cache = Places.getCacheSubfile(GRADLE_PROJECT_TRACKER_CACHE);
+                    try (ObjectInputStream is = new ObjectInputStream(new FileInputStream(cache))) {
+                        instance = (ProjectTracker) is.readObject();
+                    } catch (IOException|ClassNotFoundException ex){
+                        instance = new ProjectTracker();
+                    }
+                }
+            }
+            return instance;
+        }
+    }
+
 }

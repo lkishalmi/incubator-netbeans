@@ -97,7 +97,7 @@ public final class NbGradleProjectImpl implements Project {
         Class<?> c = NbGradleProject.class;
         try {
             Class.forName(c.getName(), true, c.getClassLoader());
-        } catch (Exception ex) {
+        } catch (ClassNotFoundException ex) {
             LOG.log(SEVERE, "very wrong, very wrong, yes indeed", ex);
         }
     }
@@ -293,12 +293,9 @@ public final class NbGradleProjectImpl implements Project {
 
         @Override
         protected void projectOpened() {
-            Runnable open = new Runnable() {
-                @Override
-                public void run() {
-                    setAimedQuality(FULL);
-                    attachAllUpdater();
-                }
+            Runnable open = () -> {
+                setAimedQuality(FULL);
+                attachAllUpdater();
             };
             if (GradleSettings.getDefault().isOpenLazy()) {
                 RELOAD_RP.post(open, 100);
