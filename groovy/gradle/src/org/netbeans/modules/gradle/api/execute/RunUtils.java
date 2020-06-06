@@ -56,6 +56,7 @@ import org.netbeans.api.java.platform.Specification;
 
 import org.netbeans.api.project.ui.OpenProjects;
 import org.netbeans.modules.gradle.GradleDistributionManager;
+import org.netbeans.modules.gradle.ProjectTrust;
 import org.netbeans.modules.gradle.api.execute.RunConfig.ExecFlag;
 import org.netbeans.modules.gradle.spi.GradleSettings;
 import org.netbeans.spi.project.SingleMethod;
@@ -230,6 +231,11 @@ public final class RunUtils {
         return isOptionEnabled(project, PROP_INCLUDE_OPEN_PROJECTS, false);
     }
 
+    public static boolean isProjectTrusted(Project project) {
+        return GradleSettings.getDefault().getGradleExecutionRule() == GradleSettings.GradleExecutionRule.ALWAYS
+                || ProjectTrust.getDefault().isTrusted(project);
+    }
+    
     public static GradleCommandLine getDefaultCommandLine(Project project) {
         String args = NbGradleProject.getPreferences(project, true).get(PROP_DEFAULT_CLI, null);
         return args != null ? new GradleCommandLine(args) : null;

@@ -232,7 +232,6 @@ public class ActionProviderImpl implements ActionProvider {
             }
         }
 
-        GradleProjectCache.approveProject(prj);
 
         boolean reloadOnly = !showUI && (args.length == 0);
         final boolean needReload;

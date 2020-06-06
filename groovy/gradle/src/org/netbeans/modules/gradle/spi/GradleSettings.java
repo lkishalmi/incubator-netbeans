@@ -127,6 +127,11 @@ public final class GradleSettings {
 
     private final Preferences preferences;
 
+    @Deprecated
+    public GradleSettings() {
+        this(NbPreferences.forModule(GradleSettings.class));
+    }
+
     GradleSettings(Preferences preferences) {
         this.preferences = preferences;
     }

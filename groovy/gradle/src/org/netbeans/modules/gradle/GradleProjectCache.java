@@ -32,19 +32,15 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -79,7 +75,6 @@ import org.openide.awt.NotificationDisplayer;
 
 import org.openide.awt.NotificationDisplayer.Category;
 import org.openide.awt.NotificationDisplayer.Priority;
-import org.openide.modules.Places;
 
 /**
  *
@@ -88,7 +83,9 @@ import org.openide.modules.Places;
 @SuppressWarnings("rawtypes")
 public final class GradleProjectCache {
 
-    private enum GoOnline { NEVER, ON_DEMAND, ALWAYS }
+    private enum GoOnline {
+        NEVER, ON_DEMAND, ALWAYS
+    }
 
     private static final Logger LOG = Logger.getLogger(GradleProjectCache.class.getName());
     private static final String INFO_CACHE_FILE_NAME = "project-info.ser"; //NOI18N
@@ -120,7 +117,7 @@ public final class GradleProjectCache {
     public static GradleProject loadProject(final NbGradleProjectImpl project, Quality aim, boolean ignoreCache, String... args) {
         final GradleFiles files = project.getGradleFiles();
 
-        boolean approved = ProjectTracker.getInstance().isApproved(files);
+        boolean approved = ProjectTrust.getDefault().isTrusted(project);
         if (!approved) {
             return fallbackProject(files);
         }
@@ -481,9 +478,6 @@ public final class GradleProjectCache {
         return createFallbackProject(FALLBACK, files, Collections.<String>emptyList());
     }
 
-    private static GradleProject evaluatedProject(GradleFiles files, Collection<String> probs) {
-        return createFallbackProject(EVALUATED, files, probs);
-    }
 
     private static GradleProject createFallbackProject(Quality quality, GradleFiles files, Collection<String> probs) {
         Collection<? extends ProjectInfoExtractor> extractors = Lookup.getDefault().lookupAll(ProjectInfoExtractor.class);
@@ -620,106 +614,4 @@ public final class GradleProjectCache {
         }
 
     }
-
-    static void approveProject(NbGradleProjectImpl project) {
-        boolean needStore = ProjectTracker.getInstance().approve(project.getGradleFiles());
-        if (needStore) {
-            ProjectTracker.store();
-        }
-    }
-    
-    static final class ProjectTracker implements Serializable {
-        private static final String GRADLE_PROJECT_TRACKER_CACHE = "gradle/project-tracker.ser"; //NOI18N
-        private static final long serialVersionUID = 1L;
-        private static final long DAYS_180 = 180L * 24 * 60 * 60 * 1000;
-
-
-        private static ProjectTracker instance;
-
-        Map<String, Long> approved = new HashMap<>();
-        byte[] salt;
-
-        ProjectTracker() {
-            salt = new byte[16];
-            new Random().nextBytes(salt);
-        }
-
-        public boolean isApproved(GradleFiles files) {
-            String hash = createHash(files);
-            return approved.containsKey(hash);
-        }
-
-        public boolean approve(GradleFiles files) {
-            Long lastApprove = approved.put(createHash(files), System.currentTimeMillis());
-            return lastApprove == null || (lastApprove + DAYS_180 )> System.currentTimeMillis();
-        }
-
-        private void readObject(ObjectInputStream is) throws IOException {
-            salt = new byte[16];
-            is.read(salt);
-            try {
-                approved = (Map<String, Long>) is.readObject();
-            } catch(ClassNotFoundException cnf){}
-        }
-
-        private void writeObject(ObjectOutputStream os) throws IOException {
-            Map<String, Long> snapshot = new HashMap<>(approved);
-            long halfYearAgo = System.currentTimeMillis() - DAYS_180;
-            Iterator<Map.Entry<String, Long>> it = snapshot.entrySet().iterator();
-            while (it.hasNext()) {
-                if (it.next().getValue() < halfYearAgo) it.remove();
-            }
-            os.write(salt);
-            os.writeObject(snapshot);
-        }
-
-        String createHash(GradleFiles files) {
-            StringBuilder sb = new StringBuilder(64);
-            List<File> toCheck = new LinkedList<>();
-            toCheck.add(files.getRootDir());
-            try {
-                final MessageDigest digest = MessageDigest.getInstance("SHA-256"); //NOI18N
-                digest.update(salt);
-                for (File file : toCheck) {
-                    digest.update(file.getAbsolutePath().getBytes());
-                }
-                byte[] hash = digest.digest();
-                for (byte h : hash) {
-                    String hex = Integer.toHexString(0xff & h);
-                    if (hex.length() == 1) {
-                        sb.append('0');
-                    }
-                    sb.append(hex);
-                }
-            } catch (NoSuchAlgorithmException nae) {
-            }
-            return sb.toString();
-        }
-
-        static synchronized void store() {
-            File cache = Places.getCacheSubfile(GRADLE_PROJECT_TRACKER_CACHE);
-            if (instance != null) {
-                try (ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream(cache))) {
-                    os.writeObject(instance);
-                } catch (IOException ex) {
-                    LOG.log(WARNING, "Error in serializing Gradle Project Tracker", ex);
-                }
-            }
-        }
-
-        static ProjectTracker getInstance() {
-            if (instance == null) {
-                synchronized(ProjectTracker.class) {
-                    File cache = Places.getCacheSubfile(GRADLE_PROJECT_TRACKER_CACHE);
-                    try (ObjectInputStream is = new ObjectInputStream(new FileInputStream(cache))) {
-                        instance = (ProjectTracker) is.readObject();
-                    } catch (IOException|ClassNotFoundException ex){
-                        instance = new ProjectTracker();
-                    }
-                }
-            }
-            return instance;
-        }
-    }
-
 }

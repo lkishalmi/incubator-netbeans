@@ -70,7 +70,12 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
     @Override
     @NbBundle.Messages({
         "LBL_BrokenPlatform=Broken Platform.",
-        "LBL_PrimingRequired=Priming Build Required."
+        "LBL_PrimingRequired=Priming Build Required.",
+        "TXT_PrimingRequired=In order to be able to read this project, "
+                + "NetBeans needs to execute its Gradle scripts as priming build."
+                + "\n\n"
+                + "Executing Gradle scripts allows arbitrary code execution, "
+                + "as current user, on this system."
     })
     public Collection<? extends ProjectProblem> getProblems() {
         List<ProjectProblem> ret = new ArrayList<>();
@@ -86,7 +91,7 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
         }
         GradleProject gp = project.getLookup().lookup(NbGradleProjectImpl.class).getGradleProject();
         if (gp.getQuality() == FALLBACK) {
-            ret.add(ProjectProblem.createError(Bundle.LBL_PrimingRequired(), Bundle.LBL_PrimingRequired(), resolver));
+            ret.add(ProjectProblem.createError(Bundle.LBL_PrimingRequired(), Bundle.TXT_PrimingRequired(), resolver));
         }
         for (String problem : gp.getProblems()) {
             String[] lines = problem.split("\\n"); //NOI18N
@@ -109,7 +114,6 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
         @Override
         public Result call() throws Exception {
             NbGradleProjectImpl impl = project.getLookup().lookup(NbGradleProjectImpl.class);
-            GradleProjectCache.approveProject(impl);
             GradleProject gradleProject = GradleProjectCache.loadProject(impl, FULL_ONLINE, true);
             impl.fireProjectReload(false);
             Quality q = gradleProject.getQuality();
