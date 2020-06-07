@@ -28,7 +28,7 @@ import org.openide.util.NbBundle.Messages;
  * @author lkishalmi
  */
 @Messages({
-    "GRADLE_TRUST_MSG=<html><p>Executing Gradle is potentially un-safe as it "
+    "GRADLE_TRUST_MSG=<html><p>Executing Gradle can be potentially un-safe as it "
             + "allows arbitrary code execution.</p><p></p>"
             + "<p>By trusting this project, and with that all its subprojects, "
             + "you entitle NetBeans to invoke Gradle "

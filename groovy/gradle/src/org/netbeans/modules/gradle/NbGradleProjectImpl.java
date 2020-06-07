@@ -84,8 +84,7 @@ public final class NbGradleProjectImpl implements Project {
     private final Lookup completeLookup;
     private Updater openedProjectUpdater;
     private Quality aimedQuality = FALLBACK;
-    private final @NonNull
-    NbGradleProject watcher;
+    private final @NonNull NbGradleProject watcher;
     @SuppressWarnings("MS_SHOULD_BE_FINAL")
     public static WatcherAccessor ACCESSOR = null;
 
@@ -249,18 +248,14 @@ public final class NbGradleProjectImpl implements Project {
     }
 
     private GradleProject loadProject(boolean ignoreCache, Quality aim, String... args) {
-        GradleProject prj = GradleProjectCache.loadProject(this, aim, ignoreCache, args);
+        GradleProject prj = GradleProjectCache.loadProject(this, aim, ignoreCache, false, args);
         return prj;
     }
 
     void reloadProject(final boolean ignoreCache, final Quality aim, final String... args) {
-        RELOAD_RP.post(new Runnable() {
-
-            @Override
-            public void run() {
-                project = loadProject(ignoreCache, aim, args);
-                ACCESSOR.doFireReload(watcher);
-            }
+        RELOAD_RP.post(() -> {
+            project = loadProject(ignoreCache, aim, args);
+            ACCESSOR.doFireReload(watcher);
         });
     }
 

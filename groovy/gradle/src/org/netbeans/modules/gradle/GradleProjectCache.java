@@ -83,9 +83,7 @@ import org.openide.awt.NotificationDisplayer.Priority;
 @SuppressWarnings("rawtypes")
 public final class GradleProjectCache {
 
-    private enum GoOnline {
-        NEVER, ON_DEMAND, ALWAYS
-    }
+    private enum GoOnline { NEVER, ON_DEMAND, ALWAYS }
 
     private static final Logger LOG = Logger.getLogger(GradleProjectCache.class.getName());
     private static final String INFO_CACHE_FILE_NAME = "project-info.ser"; //NOI18N
@@ -114,11 +112,13 @@ public final class GradleProjectCache {
      * @param requestedQuality The project information quality to aim for.
      * @return The retrievable GradleProject
      */
-    public static GradleProject loadProject(final NbGradleProjectImpl project, Quality aim, boolean ignoreCache, String... args) {
+    @Messages({
+        "TIT_NO_AUTH=Project change detected, priming build is required.",
+    })
+    public static GradleProject loadProject(final NbGradleProjectImpl project, Quality aim, boolean ignoreCache, boolean interactive, String... args) {
         final GradleFiles files = project.getGradleFiles();
 
-        boolean approved = ProjectTrust.getDefault().isTrusted(project);
-        if (!approved) {
+        if (aim == FALLBACK) {
             return fallbackProject(files);
         }
         GradleProject prev = project.project != null ? project.project : fallbackProject(files);
@@ -143,8 +143,12 @@ public final class GradleProjectCache {
 
         GradleProject ret;
         try {
-            ret = GRADLE_LOADER_RP.submit(new ProjectLoaderTask(ctx)).get();
-            updateSubDirectoryCache(ret);
+            if (RunUtils.isProjectTrusted(project, interactive)) {
+                ret = GRADLE_LOADER_RP.submit(new ProjectLoaderTask(ctx)).get();
+                updateSubDirectoryCache(ret);
+            } else {
+                ret = prev.invalidate(Bundle.TIT_NO_AUTH());
+            }
         } catch (InterruptedException | ExecutionException ex) {
             ret = fallbackProject(files);
         }

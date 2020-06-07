@@ -202,6 +202,12 @@ public class ActionProviderImpl implements ActionProvider {
     }
 
     private static void invokeProjectAction(final Project project, final ActionMapping mapping, Lookup context, boolean showUI) {
+        if (RunUtils.isProjectTrusted(project, true)) {
+            invokeTrustedProjectAction(project, mapping, context, showUI);
+        }
+    }
+
+    private static void invokeTrustedProjectAction(final Project project, final ActionMapping mapping, Lookup context, boolean showUI) {
         final String action = mapping.getName();
         String argLine = askInputArgs(mapping.getDisplayName(), mapping.getArgs());
         if (argLine == null) {

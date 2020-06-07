@@ -44,7 +44,7 @@ public class ProjectTrust {
 
     final Preferences projectTrust;
     final byte[] salt;
-    
+
     ProjectTrust(Preferences prefs) {
         byte[] buf = prefs.getByteArray(KEY_SALT, null);
         if (buf == null) {
@@ -72,7 +72,7 @@ public class ProjectTrust {
         }
         return ret;        
     }
-    
+
     public void trustProject(Project project) {
         String pathId = getPathId(project);
         Path trustFile = getProjectTrustFile(project);
