@@ -22,12 +22,16 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.prefs.Preferences;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.netbeans.api.project.Project;
 import org.openide.util.NbPreferences;
 
@@ -40,8 +44,11 @@ public class ProjectTrust {
     private static final String NODE_PROJECT = "projects"; //NOI18N
     private static final String NODE_TRUST   = "trust";    //NOI18N
 
+    private static final String HMAC_SHA256  = "HmacSHA256"; //NOI18N
+
     private static ProjectTrust instance;
 
+    private final Mac hmac;
     final Preferences projectTrust;
     final byte[] salt;
 
@@ -54,6 +61,15 @@ public class ProjectTrust {
         }
         salt = buf;
         projectTrust = prefs.node(NODE_PROJECT);
+        try {
+            hmac = Mac.getInstance(HMAC_SHA256);
+            Key key = new SecretKeySpec(salt, HMAC_SHA256);
+            hmac.init(key);
+        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
+            // Shall not happen on JVM-s fulfilling the specs.
+            // This throw line is not expected to be called, but let hmac be final
+            throw new IllegalArgumentException("JDK has issues with HMAC_SHA256: " + ex.getMessage());
+        }
     }
     
     public boolean isTrusted(Project project) {
@@ -66,7 +82,7 @@ public class ProjectTrust {
         Path trustFile = getProjectTrustFile(project);
         try {
             List<String> trust = Files.readAllLines(trustFile);
-            String hash = sha256(fromHex(projectId));
+            String hash = hmacSha256(fromHex(projectId));
             ret = trust.size() == 1 && trust.iterator().next().equals(hash);
         } catch (IOException ex) {
         }
@@ -82,7 +98,7 @@ public class ProjectTrust {
         projectTrust.put(pathId, projectId);
         try {
             Files.createDirectories(trustFile.getParent());
-            Files.write(trustFile, Collections.singletonList(sha256(rnd)));
+            Files.write(trustFile, Collections.singletonList(hmacSha256(rnd)));
         } catch (IOException ex) {}
     }
 
@@ -107,23 +123,39 @@ public class ProjectTrust {
         return instance;
     }
 
-    Path getProjectTrustPath(Project project) {
-        Path ret = null;
+    protected Path getProjectTrustPath(Project project) {
         if (project instanceof NbGradleProjectImpl) {
-            ret = ((NbGradleProjectImpl) project).getGradleFiles().getRootDir().toPath();
+            return ((NbGradleProjectImpl) project).getGradleFiles().getRootDir().toPath();
         }
-        return ret;
+        throw new IllegalArgumentException("Project shall be an NbGradleProjectImpl instance."); //NOI18N
+    }
+
+    protected Path getProjectTrustFilePath(Project project) {
+        if (project instanceof NbGradleProjectImpl) {
+            Path root = getProjectTrustPath(project);
+            return root == null ? null : root.resolve(".gradle/nb-cache/trust"); //NOI18N
+        }
+        throw new IllegalArgumentException("Project shall be an NbGradleProjectImpl instance."); //NOI18N
     }
 
     Path getProjectTrustFile(Project project) {
-        Path root = getProjectTrustPath(project);
-        return root == null ? null : root.resolve(".gradle/nb-cache/trust"); //NOI18N
+        String pathId = getPathId(project);
+        Path trustFilePath = getProjectTrustFilePath(project);
+        return trustFilePath.resolve(pathId);
     }
 
     String getPathId(Project project) {
         Path path = getProjectTrustPath(project);
         path = path.normalize().toAbsolutePath();
         return sha256(path.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    String hmacSha256(byte[] buf) {
+        byte[] out;
+        synchronized (hmac) {
+            out = hmac.doFinal(buf);
+        }
+        return toHex(out);
     }
 
     String sha256(byte[] buf) {
