@@ -90,7 +90,7 @@ public class GradleProjectProblemProvider implements ProjectProblemsProvider {
             }
         }
         GradleProject gp = project.getLookup().lookup(NbGradleProjectImpl.class).getGradleProject();
-        if (gp.getQuality() == FALLBACK) {
+        if (gp.getQuality().notBetterThan(EVALUATED)) {
             ret.add(ProjectProblem.createError(Bundle.LBL_PrimingRequired(), Bundle.TXT_PrimingRequired(), resolver));
         }
         for (String problem : gp.getProblems()) {

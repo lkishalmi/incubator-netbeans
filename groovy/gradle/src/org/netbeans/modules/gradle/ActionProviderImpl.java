@@ -202,12 +202,6 @@ public class ActionProviderImpl implements ActionProvider {
     }
 
     private static void invokeProjectAction(final Project project, final ActionMapping mapping, Lookup context, boolean showUI) {
-        if (RunUtils.isProjectTrusted(project, true)) {
-            invokeTrustedProjectAction(project, mapping, context, showUI);
-        }
-    }
-
-    private static void invokeTrustedProjectAction(final Project project, final ActionMapping mapping, Lookup context, boolean showUI) {
         final String action = mapping.getName();
         String argLine = askInputArgs(mapping.getDisplayName(), mapping.getArgs());
         if (argLine == null) {
@@ -240,6 +234,10 @@ public class ActionProviderImpl implements ActionProvider {
 
 
         boolean reloadOnly = !showUI && (args.length == 0);
+        if (!reloadOnly) {
+            //Trust project only if it does execute a real action
+            ProjectTrust.getDefault().trustProject(project);
+        }
         final boolean needReload;
         final Quality maxQualily = (cfg.getCommandLine().hasFlag(GradleCommandLine.Flag.OFFLINE))
                 && (mapping.getReloadRule() != ActionMapping.ReloadRule.ALWAYS_ONLINE)

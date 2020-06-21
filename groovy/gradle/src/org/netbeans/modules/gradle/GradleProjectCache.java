@@ -112,9 +112,6 @@ public final class GradleProjectCache {
      * @param requestedQuality The project information quality to aim for.
      * @return The retrievable GradleProject
      */
-    @Messages({
-        "TIT_NO_AUTH=Project change detected, priming build is required.",
-    })
     public static GradleProject loadProject(final NbGradleProjectImpl project, Quality aim, boolean ignoreCache, boolean interactive, String... args) {
         final GradleFiles files = project.getGradleFiles();
 
@@ -147,7 +144,7 @@ public final class GradleProjectCache {
                 ret = GRADLE_LOADER_RP.submit(new ProjectLoaderTask(ctx)).get();
                 updateSubDirectoryCache(ret);
             } else {
-                ret = prev.invalidate(Bundle.TIT_NO_AUTH());
+                ret = prev.invalidate();
             }
         } catch (InterruptedException | ExecutionException ex) {
             ret = fallbackProject(files);

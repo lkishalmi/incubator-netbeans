@@ -24,7 +24,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
@@ -36,11 +35,14 @@ import org.netbeans.api.project.Project;
 import org.openide.util.NbPreferences;
 
 /**
- *
+ * This class allows Projects to store and check the trust property of for a project.
+ * The trust is a unique identifier which is calculated on the project trusted
+ * directory and the current NetBeans user home.
+ * 
  * @author lkishalmi
  */
 public class ProjectTrust {
-    private static final String KEY_SALT     = "salt";     //NOI18N
+    private static final String KEY_SALT     = "secret";     //NOI18N
     private static final String NODE_PROJECT = "projects"; //NOI18N
     private static final String NODE_TRUST   = "trust";    //NOI18N
 
@@ -48,7 +50,7 @@ public class ProjectTrust {
 
     private static ProjectTrust instance;
 
-    private final Mac hmac;
+    private final Key key;
     final Preferences projectTrust;
     final byte[] salt;
 
@@ -61,17 +63,15 @@ public class ProjectTrust {
         }
         salt = buf;
         projectTrust = prefs.node(NODE_PROJECT);
-        try {
-            hmac = Mac.getInstance(HMAC_SHA256);
-            Key key = new SecretKeySpec(salt, HMAC_SHA256);
-            hmac.init(key);
-        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
-            // Shall not happen on JVM-s fulfilling the specs.
-            // This throw line is not expected to be called, but let hmac be final
-            throw new IllegalArgumentException("JDK has issues with HMAC_SHA256: " + ex.getMessage());
-        }
+        key = new SecretKeySpec(salt, HMAC_SHA256);
     }
-    
+
+    /**
+     * Returns true if the specified project is trusted.
+     *
+     * @param project of the trust check.
+     * @return true if the given project is trusted.
+     */
     public boolean isTrusted(Project project) {
         String pathId = getPathId(project);
         String projectId = projectTrust.get(pathId, null);
@@ -89,19 +89,29 @@ public class ProjectTrust {
         return ret;        
     }
 
+    /**
+     * Marks the given project trusted, if it was not trusted before.
+     * @param project the project to trust.
+     */
     public void trustProject(Project project) {
-        String pathId = getPathId(project);
-        Path trustFile = getProjectTrustFile(project);
-        byte[] rnd = new byte[16];
-        new Random().nextBytes(rnd);
-        String projectId = toHex(rnd);
-        projectTrust.put(pathId, projectId);
-        try {
-            Files.createDirectories(trustFile.getParent());
-            Files.write(trustFile, Collections.singletonList(hmacSha256(rnd)));
-        } catch (IOException ex) {}
+        if (!isTrusted(project)) {
+            String pathId = getPathId(project);
+            Path trustFile = getProjectTrustFile(project);
+            byte[] rnd = new byte[16];
+            new Random().nextBytes(rnd);
+            String projectId = toHex(rnd);
+            projectTrust.put(pathId, projectId);
+            try {
+                Files.createDirectories(trustFile.getParent());
+                Files.write(trustFile, Collections.singletonList(hmacSha256(rnd)));
+            } catch (IOException ex) {}
+        }
     }
 
+    /**
+     * Marks the given project not trusted.
+     * @param project the project to remove trust from.
+     */
     public void distrustProject(Project project) {
         String pathId = getPathId(project);
         projectTrust.remove(pathId);
@@ -123,6 +133,13 @@ public class ProjectTrust {
         return instance;
     }
 
+    /**
+     * The path which shall be considered as a source of trust for the given
+     * project. For Gradle projects it is the root project directory.
+     *
+     * @param project the project to calculate the source of trust from.
+     * @return the Path to the trusted directory of the project
+     */
     protected Path getProjectTrustPath(Project project) {
         if (project instanceof NbGradleProjectImpl) {
             return ((NbGradleProjectImpl) project).getGradleFiles().getRootDir().toPath();
@@ -130,6 +147,14 @@ public class ProjectTrust {
         throw new IllegalArgumentException("Project shall be an NbGradleProjectImpl instance."); //NOI18N
     }
 
+    /**
+     * The directory where to store the project trust files. It is preferred to
+     * return a directory which is most likely end up on the ignore list of the
+     * used version control system.
+     *
+     * @param project the project to return the trust file path for.
+     * @return the Path of the directory to place the trust files in.
+     */
     protected Path getProjectTrustFilePath(Project project) {
         if (project instanceof NbGradleProjectImpl) {
             Path root = getProjectTrustPath(project);
@@ -138,35 +163,46 @@ public class ProjectTrust {
         throw new IllegalArgumentException("Project shall be an NbGradleProjectImpl instance."); //NOI18N
     }
 
+    /**
+     * Returns the name of the file where the project trust shall be stored. It
+     * is the {@code <trust file path>/<unique path id>}. It ensures that different
+     * NetBeans installations won't clash on a same file.
+     *
+     * @param project the project to calculate the trust file for.
+     * @return the Path to the trust file.
+     */
     Path getProjectTrustFile(Project project) {
         String pathId = getPathId(project);
         Path trustFilePath = getProjectTrustFilePath(project);
         return trustFilePath.resolve(pathId);
     }
 
+    /**
+     * Generate a unique id of the Project trusted path. The returned id is
+     * unique as of the given project and the NetBeans user home, so the same
+     * project with different NetBeans installation would result a different id.
+     *
+     * @param project the project to get the trusted path from.
+     * @return the unique ID of the project trust path.
+     */
     String getPathId(Project project) {
         Path path = getProjectTrustPath(project);
         path = path.normalize().toAbsolutePath();
-        return sha256(path.toString().getBytes(StandardCharsets.UTF_8));
+        return hmacSha256(path.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     String hmacSha256(byte[] buf) {
         byte[] out;
-        synchronized (hmac) {
-            out = hmac.doFinal(buf);
-        }
-        return toHex(out);
-    }
-
-    String sha256(byte[] buf) {
         try {
-            final MessageDigest digest = MessageDigest.getInstance("SHA-256"); //NOI18N
-            digest.update(salt);
-            digest.update(buf);
-            return toHex(digest.digest());
-        } catch (NoSuchAlgorithmException nae) {
+            Mac hmac = Mac.getInstance(HMAC_SHA256);
+            hmac.init(key);
+            out = hmac.doFinal(buf);
+            return toHex(out);
+        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
+            // Shall not happen on JVM-s fulfilling the specs.
+            // This throw line is not expected to be called, but let hmac be final
+            throw new IllegalArgumentException("JDK has issues with HMAC_SHA256: " + ex.getMessage());
         }
-        return null;
     }
 
     static byte[] fromHex(String hex) {

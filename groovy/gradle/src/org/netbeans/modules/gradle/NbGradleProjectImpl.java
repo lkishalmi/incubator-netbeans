@@ -53,6 +53,7 @@ import static java.util.logging.Level.*;
 import java.util.logging.Logger;
 import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.annotations.common.SuppressWarnings;
+import org.netbeans.api.project.ui.ProjectProblems;
 import org.netbeans.modules.gradle.api.GradleBaseProject;
 import org.netbeans.spi.project.CacheDirectoryProvider;
 import org.netbeans.spi.project.support.LookupProviderSupport;
@@ -291,6 +292,9 @@ public final class NbGradleProjectImpl implements Project {
             Runnable open = () -> {
                 setAimedQuality(FULL);
                 attachAllUpdater();
+                if (ProjectProblems.isBroken(NbGradleProjectImpl.this)) {
+                    ProjectProblems.showAlert(NbGradleProjectImpl.this);
+                }
             };
             if (GradleSettings.getDefault().isOpenLazy()) {
                 RELOAD_RP.post(open, 100);
