@@ -129,8 +129,8 @@ public final class RunUtils {
 
     /**
      * Create Gradle execution configuration (context).It applies the default
- setting from the project and the Global Gradle configuration on the
- command line.
+     * setting from the project and the Global Gradle configuration on the
+     * command line.
      *
      * @param project The Gradle project
      * @param action The name of the IDE action that's going to be executed

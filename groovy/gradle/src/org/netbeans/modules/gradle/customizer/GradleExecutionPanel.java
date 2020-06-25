@@ -31,8 +31,10 @@ import org.openide.util.NbBundle.Messages;
     "GRADLE_TRUST_MSG=<html><p>Executing Gradle can be potentially un-safe as it "
             + "allows arbitrary code execution.</p><p></p>"
             + "<p>By trusting this project, and with that all its subprojects, "
-            + "you entitle NetBeans to invoke Gradle "
-            + "without further confirmation.</p>",
+            + "you entitle NetBeans to invoke Gradle to load project details "
+            + "without further confirmation.</p><p></p>"
+            + "<p>Invoking any build related actions, would mark this project "
+            + "automatically trusted.</p>",
 })
 public class GradleExecutionPanel extends javax.swing.JPanel {
 
