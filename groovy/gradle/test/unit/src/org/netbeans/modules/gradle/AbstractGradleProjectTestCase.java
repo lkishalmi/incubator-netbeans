@@ -65,6 +65,7 @@ public class AbstractGradleProjectTestCase extends NbTestCase {
     protected Project openProject(FileObject projectDir) throws IOException {
         Project prj = ProjectManager.getDefault().findProject(projectDir);
         assertNotNull(prj);
+        ProjectTrust.getDefault().trustProject(prj);
         ProjectOpenedTrampoline.DEFAULT.projectOpened(prj.getLookup().lookup(ProjectOpenedHook.class));
         return prj;
     }

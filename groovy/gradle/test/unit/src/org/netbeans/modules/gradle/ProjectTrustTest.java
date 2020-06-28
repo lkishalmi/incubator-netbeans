@@ -20,17 +20,9 @@ package org.netbeans.modules.gradle;
 
 import java.io.IOException;
 import java.util.Random;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import static org.junit.Assert.*;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
-import org.netbeans.junit.NbTestCase;
 import org.openide.filesystems.FileObject;
-import org.openide.filesystems.LocalFileSystem;
 import org.openide.util.NbPreferences;
 
 /**
@@ -39,18 +31,9 @@ import org.openide.util.NbPreferences;
  */
 public class ProjectTrustTest extends AbstractGradleProjectTestCase {
 
-    private FileObject root;
 
     public ProjectTrustTest(String name) {
         super(name);
-    }
-
-    @Override
-    protected void setUp() throws Exception {
-        clearWorkDir();
-        LocalFileSystem fs = new LocalFileSystem();
-        fs.setRootDirectory(getWorkDir());
-        root = fs.getRoot();
     }
 
     public void testIsTrusted4Untrusted() throws IOException {
