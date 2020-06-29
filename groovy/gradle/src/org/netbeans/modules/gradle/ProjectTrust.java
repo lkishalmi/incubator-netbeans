@@ -35,7 +35,7 @@ import org.netbeans.api.project.Project;
 import org.openide.util.NbPreferences;
 
 /**
- * This class allows Projects to store and check the trust property of for a project.
+ * This class allows Projects to store and check the trust property of a project.
  * The trust is a unique identifier which is calculated on the project trusted
  * directory and the current NetBeans user home.
  * 

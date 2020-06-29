@@ -68,6 +68,10 @@ public final class GradleSettings {
         }
     }
 
+    /**
+     * Rule, that determines when to allow automatic Gradle execution.
+     * @since 2.2
+     */
     @Messages({
         "GE_TRUSTED_PROJECTS=Trusted Projects Only",
         "GE_ALWAYS=Always"
@@ -355,10 +359,16 @@ public final class GradleSettings {
         return DownloadMiscRule.valueOf(ruleName);
     }
 
+    /**
+     * @since 2.2
+     */
     public void setGradleExecutionRule(GradleExecutionRule rule) {
         getPreferences().put(PROP_GRADLE_EXEC_RULE, rule.name());
     }
 
+    /**
+     * @since 2.2
+     */
     public GradleExecutionRule getGradleExecutionRule() {
         String ruleName = getPreferences().get(PROP_GRADLE_EXEC_RULE, GradleExecutionRule.TRUSTED_PROJECTS.name());
         return GradleExecutionRule.valueOf(ruleName);

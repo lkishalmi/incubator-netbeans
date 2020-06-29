@@ -228,7 +228,7 @@ public final class GradleProjectCache {
             } else {
                 String problem = info.getGradleException();
                 String[] lines = problem.split("\n");
-                LOG.log(INFO, "Failed to retrieve project information for: {0} {1}", new Object[]{base.getProjectDir(), lines});
+                LOG.log(INFO, "Failed to retrieve project information for: {0} {1}", new Object[] {base.getProjectDir(), lines});
                 openNotification(base.getProjectDir(), Bundle.TIT_LOAD_FAILED(base.getProjectDir().getName()), lines[0], problem);
                 return ctx.previous.invalidate(problem);
             }
