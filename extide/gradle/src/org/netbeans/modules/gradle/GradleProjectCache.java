@@ -66,6 +66,8 @@ import javax.swing.JLabel;
 import org.netbeans.modules.gradle.cache.AbstractDiskCache.CacheEntry;
 import org.netbeans.modules.gradle.cache.ProjectInfoDiskCache.QualifiedProjectInfo;
 import org.netbeans.modules.gradle.api.execute.RunUtils;
+import org.netbeans.modules.gradle.cache.ArtifactDiskCache;
+import org.netbeans.modules.gradle.cache.ArtifactDiskCache.ArtifactInfo;
 import org.openide.awt.Notification;
 import org.openide.awt.NotificationDisplayer;
 
@@ -233,7 +235,8 @@ public final class GradleProjectCache {
         }
         QualifiedProjectInfo qinfo = new QualifiedProjectInfo(quality, info);
         GradleProject ret = createGradleProject(qinfo);
-        GradleArtifactStore.getDefault().processProject(ret);
+
+        saveCachedArtifactInfo(ret);
         if (info.getMiscOnly()) {
             ret = ctx.previous;
         } else {
@@ -415,6 +418,15 @@ public final class GradleProjectCache {
         assert gp.getQuality().betterThan(FALLBACK) : "Never attempt to cache FALLBACK projects."; //NOi18N
         GradleFiles gf = new GradleFiles(gp.getBaseProject().getProjectDir(), true);
         new ProjectInfoDiskCache(gf).storeData(data);
+    }
+
+    private static void saveCachedArtifactInfo(GradleProject gp) {
+        ArtifactDiskCache artCache = ArtifactDiskCache.get(gp.baseProject.getRootDir());
+        ArtifactInfo artInfo = artCache.loadData();
+        artInfo = artInfo != null ? artInfo : artCache.newArtifactInfo();
+        if (artInfo.updateInfo(gp)) {
+            artCache.storeData(artInfo);
+        }
     }
 
     private static GradleProject fallbackProject(GradleFiles files) {

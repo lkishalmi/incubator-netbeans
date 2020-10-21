@@ -20,7 +20,6 @@
 package org.netbeans.modules.gradle.nodes;
 
 import org.netbeans.modules.gradle.ActionProviderImpl;
-import org.netbeans.modules.gradle.GradleArtifactStore;
 import org.netbeans.modules.gradle.NbGradleProjectImpl;
 import org.netbeans.modules.gradle.api.GradleDependency;
 import org.netbeans.modules.gradle.GradleProject;
@@ -148,7 +147,8 @@ public class ConfigurationsNode extends AbstractNode {
 
         @Override
         protected Node createNodeForKey(GradleConfiguration conf) {
-            AbstractNode ret = new AbstractNode(Children.create(new ConfigurationChildren(project, conf.getName()), true));
+            Children ch = conf.isEmpty() ? Children.LEAF : Children.create(new ConfigurationChildren(project, conf.getName()), true);
+            AbstractNode ret = new AbstractNode(ch);
             ret.setName(conf.getName());
             ret.setShortDescription(conf.getDescription());
             StringBuilder displayName = new StringBuilder(conf.getName());

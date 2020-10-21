@@ -20,7 +20,6 @@
 package org.netbeans.modules.gradle.api;
 
 import org.netbeans.modules.gradle.spi.GradleFiles;
-import org.netbeans.modules.gradle.GradleArtifactStore;
 import static org.netbeans.modules.gradle.api.GradleDependency.*;
 import org.netbeans.modules.gradle.spi.ProjectInfoExtractor;
 import java.io.File;
@@ -35,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import org.netbeans.modules.gradle.GradleModuleFileCache21;
+import org.netbeans.modules.gradle.cache.ArtifactDiskCache;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -63,7 +64,6 @@ class GradleBaseProjectBuilder implements ProjectInfoExtractor.Result {
     final Map<String, Object> info;
     final GradleBaseProject prj = new GradleBaseProject();
     final Set<String> problems = new LinkedHashSet<>();
-    final GradleArtifactStore artifactSore = GradleArtifactStore.getDefault();
 
     GradleBaseProjectBuilder(Map<String, Object> info) {
         this.info = info;
@@ -125,6 +125,9 @@ class GradleBaseProjectBuilder implements ProjectInfoExtractor.Result {
 
     void processDependencies() {
 
+        ArtifactDiskCache artCache = ArtifactDiskCache.get(prj.rootDir);
+        GradleModuleFileCache21 moduleCache = GradleModuleFileCache21.getGradleFileCache();
+
         Set<File> sourceSetOutputs = new HashSet<>();
         Set<String> sourceSetNames = (Set<String>) info.get("sourcesets");
         if (sourceSetNames != null) {
@@ -182,11 +185,9 @@ class GradleBaseProjectBuilder implements ProjectInfoExtractor.Result {
                             conf.modules.add(dep);
                         } else {
                             Set<File> binaries = artifactSore.getBinaries(c);
-                            if (binaries != null) {
-                                dep = new ModuleDependency(c, binaries);
-                                components.put(c, dep);
-                                conf.modules.add(dep);
-                            }
+                            dep = new ModuleDependency(c, binaries);
+                            components.put(c, dep);
+                            conf.modules.add(dep);
                         }
                     }
                     conf.projects = new HashSet<>();

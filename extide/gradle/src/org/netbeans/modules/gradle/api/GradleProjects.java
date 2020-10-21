@@ -19,14 +19,16 @@
 
 package org.netbeans.modules.gradle.api;
 
-import org.netbeans.modules.gradle.GradleArtifactStore;
 import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ui.OpenProjects;
+import org.netbeans.modules.gradle.GradleModuleFileCache21;
 import org.netbeans.modules.gradle.spi.GradleFiles;
+import org.netbeans.modules.gradle.spi.GradleSettings;
+import org.netbeans.modules.gradle.spi.execute.GradleDistributionProvider;
 
 /**
  * Utility methods working with Gradle projects and Artifacts.
@@ -44,8 +46,9 @@ public final class GradleProjects {
      * @return the location of the Source artifact or {@code null} if that is
      * not available.
      */
+    @Deprecated
     public static File getSources(File binary) {
-        return GradleArtifactStore.getDefault().getSources(binary);
+        return findSources(GradleSettings.getDefault().getGradleUserHome(), binary);
     }
 
     /**
@@ -54,8 +57,31 @@ public final class GradleProjects {
      * @return the location of the JavaDoc artifact or {@code null} if that is
      * not available.
      */
+    @Deprecated
     public static File getJavadoc(File binary) {
-        return GradleArtifactStore.getDefault().getJavadoc(binary);
+        return findJavadoc(GradleSettings.getDefault().getGradleUserHome(), binary);
+    }
+
+    /**
+     * Get the Source artifact for the given binary if available.
+     * @param binary the location of the binary artifact.
+     * @return the location of the Source artifact or {@code null} if that is
+     * not available.
+     */
+    public static File getSources(Project project, File binary) {
+        GradleDistributionProvider pvd = project.getLookup().lookup(GradleDistributionProvider.class);
+        return pvd != null ? findSources(pvd.getGradleDistribution().getGradleUserHome(), binary) : null;
+    }
+
+    /**
+     * Get the JavaDoc artifact for the given binary if available.
+     * @param binary the location of the binary artifact.
+     * @return the location of the JavaDoc artifact or {@code null} if that is
+     * not available.
+     */
+    public static File getJavadoc(Project project, File binary) {
+        GradleDistributionProvider pvd = project.getLookup().lookup(GradleDistributionProvider.class);
+        return pvd != null ? findJavadoc(pvd.getGradleDistribution().getGradleUserHome(), binary) : null;
     }
 
     /**
@@ -145,5 +171,46 @@ public final class GradleProjects {
                 collectProjectDependencies(ret, siblings, test);
             }
         }
+    }
+
+    private static File findSources(File gradleHome, File binary) {
+        File ret = null;
+        GradleModuleFileCache21 cache = GradleModuleFileCache21.getGradleFileCache(gradleHome.toPath());
+        if (cache.contains(binary.toPath())) {
+            try {
+                GradleModuleFileCache21.CachedArtifactVersion v = cache.resolveCachedArtifactVersion(binary.toPath());
+                GradleModuleFileCache21.CachedArtifactVersion.Entry sources = v.getSources();
+                ret = sources != null ? sources.getPath().toFile() : null;
+            } catch (IllegalArgumentException ex) {}
+        }
+        return ret != null ? ret : checkM2Heuristic(binary, "sources"); //NOI18N
+    }
+
+    private static File findJavadoc(File gradleHome, File binary) {
+        File ret = null;
+        GradleModuleFileCache21 cache = GradleModuleFileCache21.getGradleFileCache(gradleHome.toPath());
+        if (cache.contains(binary.toPath())) {
+            try {
+                GradleModuleFileCache21.CachedArtifactVersion v = cache.resolveCachedArtifactVersion(binary.toPath());
+                GradleModuleFileCache21.CachedArtifactVersion.Entry javadoc = v.getJavaDoc();
+                ret = javadoc != null ? javadoc.getPath().toFile() : null;
+            } catch (IllegalArgumentException ex) {}
+        }
+        return ret != null ? ret : checkM2Heuristic(binary, "javadoc"); //NOI18N
+    }
+
+    private static File checkM2Heuristic(File mainJar, String classifier) {
+        File ret = null;
+        String fname = mainJar.getName();
+        StringBuilder guessName = new StringBuilder(fname);
+        if (fname.endsWith(".jar")) {                                       //NOI18N
+            guessName = guessName.delete(guessName.length() - 4, guessName.length());
+            guessName.append('-').append(classifier).append(".jar");        //NOI18N
+            File guess = new File(mainJar.getParentFile(), guessName.toString());
+            if (guess.isFile()) {
+                ret = guess;
+            }
+        }
+        return ret;
     }
 }
